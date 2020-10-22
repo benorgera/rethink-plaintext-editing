@@ -22,16 +22,16 @@ function PlaintextEditor({ file, write }) {
   	setFileString(newString); // update text area
 
   	// trigger write event upstream (has effect of changing file prop)
-	write(new File([newString], file.name, {
-	  lastModified: Date.now(),
-	  type: file.type
-	}));
+	  write(new File([newString], file.name, {
+	    lastModified: Date.now(),
+	    type: file.type
+	  }));
   }
 
   return (
     <div className={css.editor}>
-      <h3>{path.basename(file.name)}</h3>
-      <textarea value={fileString} onChange={onEdit}></textarea>
+      <div className={css.title}>{path.basename(file.name)}</div>
+      <textarea className={css.content} value={fileString} rows={15} onChange={onEdit}></textarea>
     </div>
   );
 }

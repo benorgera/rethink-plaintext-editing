@@ -70,6 +70,7 @@ function usePersistedState(key, defaultValue, areFiles) {
 
   useEffect(() => {
     (async () => {
+      // result of lookup from localstorage
       const persistedState = await persistedStatePromise;
 
       if (persistedState !== null) {
@@ -202,7 +203,7 @@ const PlaintextFilesChallenge = () => {
 
   const fileSelected = activeFileIndex >= 0,
         file = fileSelected && files[activeFileIndex],
-        Editor = fileSelected && REGISTERED_EDITORS[file.type];
+        Editor = file && REGISTERED_EDITORS[file.type];
 
   return (
     <div className={css.page}>
