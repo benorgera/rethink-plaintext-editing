@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forceUpdate } from 'react';
 import Head from 'next/head';
 import PropTypes from 'prop-types';
 import path from 'path';
@@ -25,7 +25,74 @@ const TYPE_TO_ICON = {
   'application/json': IconJSONSVG
 };
 
-function FilesTable({ files, activeFile, setActiveFile }) {
+// simple local storage persistence
+function usePersistedState(key, defaultValue, areFiles) {
+
+  // how files are persisted
+  async function toStorage(files) {
+
+    const toJson = async (f) => {
+      return {
+          lastModified: f.lastModified,
+          name: f.name,
+          text: await f.text(),
+          type: f.type
+      }
+    };
+
+    return Promise.all(files.map(f => {
+      const promise = (async () => await toJson(f))();
+  
+      return promise;
+    }));
+  }
+
+  // how files are loaded
+  async function fromStorage(jsons) {
+    const fromJson = json => new File([json.text], json.name, {
+        lastModified: json.lastModified,
+        type: json.type
+    });
+
+    return jsons.map(j => fromJson(j));
+  }
+
+  var resolver;
+  const persistedStatePromise = new Promise(resolve => {
+    resolver = resolve;
+  });
+
+  useEffect(() => {
+    resolver(JSON.parse(localStorage.getItem(key)));
+  });
+
+  const [state, setState] = useState(defaultValue);
+
+  useEffect(() => {
+    (async () => {
+      const persistedState = await persistedStatePromise;
+
+      if (persistedState !== null) {
+        const decoded = areFiles ? await fromStorage(persistedState) : JSON.parse(persistedState);
+        setState(decoded);
+      }
+    })();
+  }, []);
+
+  const persistState = () => {
+    (async () => {
+      const serializable = areFiles ? await toStorage(state) : JSON.stringify(state);   
+      localStorage.setItem(key, JSON.stringify(serializable));
+    })();
+  };
+
+  useEffect(persistState, [state]);
+
+  return [state, setState, persistState];
+}
+
+function FilesTable({ files, activeFileIndex, setActiveFileIndex }) {
+  const activeFile = activeFileIndex >= 0;
   return (
     <div className={css.files}>
       <table>
@@ -36,14 +103,14 @@ function FilesTable({ files, activeFile, setActiveFile }) {
           </tr>
         </thead>
         <tbody>
-          {files.map(file => (
+          {files.map((file, index) => (
             <tr
               key={file.name}
               className={classNames(
                 css.row,
-                activeFile && activeFile.name === file.name ? css.active : ''
+                index === activeFileIndex && css.active,
               )}
-              onClick={() => setActiveFile(file)}
+              onClick={() => setActiveFileIndex(index)}
             >
               <td className={css.file}>
                 <div
@@ -73,11 +140,12 @@ function FilesTable({ files, activeFile, setActiveFile }) {
 
 FilesTable.propTypes = {
   files: PropTypes.arrayOf(PropTypes.object),
-  activeFile: PropTypes.object,
-  setActiveFile: PropTypes.func
+  activeFileIndex: PropTypes.number,
+  setActiveFileIndex: PropTypes.func
 };
 
 function Previewer({ file }) {
+
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -104,30 +172,37 @@ const REGISTERED_EDITORS = {
   "text/markdown": MarkdownEditor,
 };
 
-function PlaintextFilesChallenge() {
-  const [files, setFiles] = useState([]);
-  const [activeFile, setActiveFile] = useState(null);
+const PlaintextFilesChallenge = () => {
+  // store these in local storage state
+  
+  var [files, setFiles, persistFiles] = usePersistedState('RETHINK_CHALLENGE.files', [], true),
+      [activeFileIndex, setActiveFileIndex] = usePersistedState('RETHINK_CHALLENGE.activeFile', -1, false);
 
+  // if nothing was found in local store, use default files
   useEffect(() => {
-    const files = listFiles();
-    setFiles(files);
+    if (files.length === 0) {
+      const defaultFiles = listFiles();
+      setFiles(defaultFiles);
+    }
   }, []);
 
-  const write = file => {
-    console.log('Writing soon... ', file.name);
-
-    const indexOfFile = files.find(f => f.name === file.name);
+  const write = async (file) => {
+    const indexOfFile = files.findIndex(f => f.name === file.name);
 
     if (indexOfFile === undefined) {
       files.push(file);
+      indexOfFile = files.length - 1;
     } else {
       files[indexOfFile] = file;
     }
 
     setFiles(files);
+    persistFiles();
   };
 
-  const Editor = activeFile ? REGISTERED_EDITORS[activeFile.type] : null;
+  const fileSelected = activeFileIndex >= 0,
+        file = fileSelected && files[activeFileIndex],
+        Editor = fileSelected && REGISTERED_EDITORS[file.type];
 
   return (
     <div className={css.page}>
@@ -146,8 +221,8 @@ function PlaintextFilesChallenge() {
 
         <FilesTable
           files={files}
-          activeFile={activeFile}
-          setActiveFile={setActiveFile}
+          activeFileIndex={activeFileIndex}
+          setActiveFileIndex={setActiveFileIndex}
         />
 
         <div style={{ flex: 1 }}></div>
@@ -164,14 +239,14 @@ function PlaintextFilesChallenge() {
       </aside>
 
       <main className={css.editorWindow}>
-        {activeFile && (
+        {fileSelected && (
           <>
-            {Editor && <Editor file={activeFile} write={write} />}
-            {!Editor && <Previewer file={activeFile} />}
+            {Editor && <Editor file={files[activeFileIndex]} write={write} />}
+            {!Editor && <Previewer file={files[activeFileIndex]} />}
           </>
         )}
 
-        {!activeFile && (
+        {!fileSelected && (
           <div className={css.empty}>Select a file to view or edit</div>
         )}
       </main>
