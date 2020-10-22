@@ -5,25 +5,37 @@ import css from './style.css';
 import path from 'path';
 
 function PlaintextEditor({ file, write }) {
-  console.log(file, write);
 
   const [fileString, setFileString] = useState('Loading...');
 
+  // load the file blob text
   useEffect(() => {
   	(async () => {
   	    const text = await file.text();
-  	    console.log(text);
   	    setFileString(text);
   	})();
-  }, [file]); // whenever file changes internally, update the UI
+  }, [file]); // rerun the text load effect when the file prop changes
+
+  function onEdit(e) {
+  	const newString = e.target.value;
+
+  	setFileString(newString); // update text area
+
+  	// trigger write event upstream (has effect of changing file prop)
+	write(new File([newString], file.name, {
+	  lastModified: Date.now(),
+	  type: file.type
+	}));
+  }
 
   return (
     <div className={css.editor}>
       <h3>{path.basename(file.name)}</h3>
-      <textarea value={fileString}></textarea>
+      <textarea value={fileString} onChange={onEdit}></textarea>
     </div>
   );
 }
+
 
 PlaintextEditor.propTypes = {
   file: PropTypes.object,

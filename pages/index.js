@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import PropTypes from 'prop-types';
 import path from 'path';
+
 import classNames from 'classnames';
 
 import { listFiles } from '../files';
@@ -115,8 +116,15 @@ function PlaintextFilesChallenge() {
   const write = file => {
     console.log('Writing soon... ', file.name);
 
-    setFiles([file]);
-    // TODO: Write the file to the `files` array
+    const indexOfFile = files.find(f => f.name === file.name);
+
+    if (indexOfFile === undefined) {
+      files.push(file);
+    } else {
+      files[indexOfFile] = file;
+    }
+
+    setFiles(files);
   };
 
   const Editor = activeFile ? REGISTERED_EDITORS[activeFile.type] : null;
